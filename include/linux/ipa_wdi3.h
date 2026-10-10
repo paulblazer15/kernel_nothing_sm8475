@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2018 - 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
+ * Copyright (c) 2021-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _IPA_WDI3_H_
@@ -19,6 +20,7 @@
 	(IPA_HW_WDI3_IPA2FW_ER_DESC_SIZE))
 
 #define IPA_WDI_MAX_SUPPORTED_SYS_PIPE 3
+#define IPA_WDI_MAX_FILTER_INFO_COUNT 5
 
 typedef u32 ipa_wdi_hdl_t;
 
@@ -26,6 +28,7 @@ enum ipa_wdi_version {
 	IPA_WDI_1,
 	IPA_WDI_2,
 	IPA_WDI_3,
+	IPA_WDI_3_V2,
 	IPA_WDI_VER_MAX
 };
 
@@ -34,35 +37,18 @@ enum ipa_wdi_version {
 #define IPA_WDI3_RX_DIR 3
 #define IPA_WDI_INST_MAX (2)
 
-/*
- * <28 bytes of rx_msdu_end_tlv> + <16 bytes of attn_tlv> +
- * <52 bytes of rx_msdu_start tlv>.
- */
-#define IPA_WDI_RX_TLV_SIZE 96
-
-/** struct ipa_ast_info_type - structure used for updating the AST table.
- * @mac_addr_ad4_valid: bool to indicate whethere peer supports 4 address
- * scheme or not.
- * @sa_valid: bool to indicate whether SA has a valid entry in AST table.
- * @first_msdu_in_mpdu_flag: bool to indicate whether current packet is
- * first frame in mpdu aggregation or not.
- * @sa_idx: Index to AST table.
- * @sa_peer_id: TA peer id associated with SA.
- * @ta_peer_id: TA peer id for the current frame.
- * @skb: Packet pointer.
- */
-struct ipa_ast_info_type {
-	bool mac_addr_ad4_valid;
-	bool sa_valid;
-	bool first_msdu_in_mpdu_flag;
-	u16 sa_idx;
-	u16 sa_peer_id;
-	u16 ta_peer_id;
-	struct sk_buff *skb;
+enum ipa_wdi_opt_dpath_resp_code {
+	IPA_WDI_OPT_DPATH_RESP_SUCCESS = 0,
+	IPA_WDI_OPT_DPATH_RESP_ERR_FAILURE = 200,
+	IPA_WDI_OPT_DPATH_RESP_ERR_INTERNAL = 201,
+	IPA_WDI_OPT_DPATH_RESP_ERR_TIMEOUT = 202,
+	IPA_WDI_OPT_DPATH_RESP_SUCCESS_HIGH_TPUT = 203,
+	IPA_WDI_OPT_DPATH_RESP_SUCCESS_SHUTDOWN =  204,
+	IPA_WDI_OPT_DPATH_RESP_SUCCESS_SSR = 205,
+	IPA_WDI_OPT_DPATH_RESP_MAX
 };
 
-typedef void (*ipa_wdi_mesh_ast_notifier_cb)(void *priv, unsigned long data);
-
+#define IPA_WDI_OPT_DPATH_CTRL_VER_V2
 
 /**
  * struct ipa_wdi_init_in_params - wdi init input parameters
@@ -70,9 +56,6 @@ typedef void (*ipa_wdi_mesh_ast_notifier_cb)(void *priv, unsigned long data);
  * @wdi_version: wdi version
  * @notify: uc ready callback
  * @priv: uc ready callback cookie
- * @wdi_notify: bw notification cb
- * inst_id: Instance ID
- * @ast_update: AST update needed or not.
  */
 struct ipa_wdi_init_in_params {
 	enum ipa_wdi_version wdi_version;
@@ -82,7 +65,6 @@ struct ipa_wdi_init_in_params {
 	ipa_wdi_meter_notifier_cb wdi_notify;
 #endif
 	int inst_id;
-	bool ast_update;
 };
 
 /**
@@ -92,13 +74,104 @@ struct ipa_wdi_init_in_params {
     is ready.
  * @is_smmu_enable: is smmu enabled
  * @is_over_gsi: is wdi over GSI or uC
+ * @opt_wdi_dpath: is optimized data path enabled.
+ * @opt_wdi_ctrl_dpath: is optimized ctrl data path enabled.
  */
 struct ipa_wdi_init_out_params {
 	bool is_uC_ready;
 	bool is_smmu_enabled;
 	bool is_over_gsi;
 	ipa_wdi_hdl_t hdl;
+	bool opt_wdi_dpath;
+	bool opt_wdi_ctrl_dpath;
 };
+/**
+ * struct filter_tuple_info - Properties of filters installed with WLAN
+ *
+ * @version: IP version, 0 - IPv4, 1 - IPv6
+ * @ipv4_saddr: IPV4 source address
+ * @ipv4_daddr: IPV4 destination address
+ * @ipv6_saddr: IPV6 source address
+ * @ipv6_daddr: IPV6 destination address
+ * @ipv4_addr: IPV4  address
+ * @ipv6_addr: IPV6  address
+ * @protocol: trasport protocol being used
+ * @sport: source port
+ * @dport: destination port
+ * @out_hdl: handle given by WLAN for filter installation
+ */
+
+struct filter_tuple_info {
+	u8 version;
+	union {
+		struct {
+			__be32 ipv4_saddr;
+			__be32 ipv4_daddr;
+		} ipv4_addr;
+		struct {
+			__be32 ipv6_saddr[4];
+			__be32 ipv6_daddr[4];
+		} ipv6_addr;
+	};
+	u8 protocol;
+	__be16 sport;
+	__be16 dport;
+	u32 out_hdl;
+};
+
+/**
+ * struct ipa_wdi_opt_dpath_flt_add_cb_params - wdi filter add callback parameters
+ *
+ * @num_tuples: Number of filter tuples
+ * @ip_addr_port_tuple: IP info (source/destination IP, source/destination port)
+ */
+struct ipa_wdi_opt_dpath_flt_add_cb_params {
+	u8 num_tuples;
+	struct filter_tuple_info flt_info[IPA_WDI_MAX_FILTER_INFO_COUNT];
+};
+
+/**
+ * struct ipa_wdi_opt_dpath_flt_rem_cb_params - wdi filter remove callback parameters
+ *
+ * @num_tuples: Number of filters to be removed
+ * @hdl_info: array of handles of filters to be removed
+ */
+struct ipa_wdi_opt_dpath_flt_rem_cb_params {
+	u8 num_tuples;
+	u32 hdl_info[IPA_WDI_MAX_FILTER_INFO_COUNT];
+};
+
+/**
+ * struct ipa_wdi_opt_dpath_flt_rsrv_cb_params - wdi filter reserve callback parameters
+ *
+ * @num_filters: number of filters to be reserved
+ * @rsrv_timeout: reservation timeout in milliseconds
+ */
+struct ipa_wdi_opt_dpath_flt_rsrv_cb_params {
+	u8 num_filters;
+	u32 rsrv_timeout;
+};
+
+typedef int (*ipa_wdi_opt_dpath_flt_rsrv_cb)
+	(void *priv, struct ipa_wdi_opt_dpath_flt_rsrv_cb_params *in);
+
+typedef int (*ipa_wdi_opt_dpath_flt_rsrv_rel_cb)
+	(void *priv);
+
+typedef int (*ipa_wdi_opt_dpath_flt_add_cb)
+	(void *priv, struct ipa_wdi_opt_dpath_flt_add_cb_params *in_out);
+
+typedef int (*ipa_wdi_opt_dpath_flt_rem_cb)
+	(void *priv, struct ipa_wdi_opt_dpath_flt_rem_cb_params *in);
+
+typedef int (*ipa_wdi_opt_dpath_ctrl_flt_add_cb)
+	(void *priv, struct ipa_wdi_opt_dpath_flt_add_cb_params *in_out);
+
+typedef int (*ipa_wdi_opt_dpath_ctrl_flt_rem_cb)
+	(void *priv, struct ipa_wdi_opt_dpath_flt_rem_cb_params *in);
+
+typedef int (*ipa_wdi_opt_dpath_clk_status_cb)
+	(void *priv, bool status);
 
 /**
  * struct ipa_wdi_hdr_info - Header to install on IPA HW
@@ -121,23 +194,20 @@ struct ipa_wdi_hdr_info {
  *
  * @netdev_name: network interface name
  * @hdr_info: header information
- * @is_meta_data_valid: if meta data is valid
- * @meta_data: meta data if any
- * @meta_data_mask: meta data mask
+ * @is_meta_data_valid: if metadata is valid
+ * @meta_data: metadata if any
+ * @meta_data_mask: metadata mask
  * @is_tx1_used: to indicate whether 2.4g or 5g iface
- * @is_rx1_used: to indicate whether additional RX pipe for
- * tagged traffic is needed
  */
 struct ipa_wdi_reg_intf_in_params {
 	const char *netdev_name;
-	struct ipa_wdi_hdr_info hdr_info[IPA_IP_MAX_WLAN];
+	struct ipa_wdi_hdr_info hdr_info[IPA_IP_MAX];
 	enum ipa_client_type alt_dst_pipe;
 	u8 is_meta_data_valid;
 	u32 meta_data;
 	u32 meta_data_mask;
 	u8 is_tx1_used;
 	ipa_wdi_hdl_t hdl;
-	u8 is_rx1_used;
 };
 
 /**
@@ -155,10 +225,12 @@ struct ipa_wdi_reg_intf_in_params {
 	will update the headpointer of the event ring
  * @is_evt_rn_db_pcie_addr: Bool indicated evt ring DB is pcie or not
  * @num_pkt_buffers:  Number of pkt buffers allocated. The size of the event
-	ring and the transfer ring has to be atleast ( num_pkt_buffers + 1)
+	ring and the transfer ring has to be at least ( num_pkt_buffers + 1)
  * @pkt_offset: packet offset (wdi header length)
  * @desc_format_template[IPA_HW_WDI3_MAX_ER_DESC_SIZE]:  Holds a cached
 	template of the desc format
+ * @rx_bank_id: value used to perform TCL HW setting
+
  */
 struct ipa_wdi_pipe_setup_info {
 	struct ipa_ep_cfg ipa_ep_cfg;
@@ -177,6 +249,7 @@ struct ipa_wdi_pipe_setup_info {
 	u16 pkt_offset;
 
 	u32  desc_format_template[IPA_HW_WDI3_MAX_ER_DESC_SIZE];
+	u8 rx_bank_id;
 };
 
 /**
@@ -194,10 +267,12 @@ struct ipa_wdi_pipe_setup_info {
 	will update the headpointer of the event ring
  * @is_evt_rn_db_pcie_addr: Bool indicated evt ring DB is pcie or not
  * @num_pkt_buffers:  Number of pkt buffers allocated. The size of the event
-	ring and the transfer ring has to be atleast ( num_pkt_buffers + 1)
+	ring and the transfer ring has to be at least ( num_pkt_buffers + 1)
  * @pkt_offset: packet offset (wdi header length)
  * @desc_format_template[IPA_HW_WDI3_MAX_ER_DESC_SIZE]:  Holds a cached
 	template of the desc format
+ * @rx_bank_id: value used to perform TCL HW setting
+
  */
 struct ipa_wdi_pipe_setup_info_smmu {
 	struct ipa_ep_cfg ipa_ep_cfg;
@@ -216,13 +291,13 @@ struct ipa_wdi_pipe_setup_info_smmu {
 	u16 pkt_offset;
 
 	u32  desc_format_template[IPA_HW_WDI3_MAX_ER_DESC_SIZE];
+	u8 rx_bank_id;
 };
 
 /**
  * struct  ipa_wdi_conn_in_params - information provided by
  *		uC offload client
  * @notify: client callback function
- * @ast_notify: ast notification cb
  * @priv: client cookie
  * @is_smmu_enabled: if smmu is enabled
  * @num_sys_pipe_needed: number of sys pipe needed
@@ -234,14 +309,9 @@ struct ipa_wdi_pipe_setup_info_smmu {
  * @is_tx1_used: to notify extra pipe required/not
  * @tx1: parameters to connect TX1 pipe(from IPA to WLAN second pipe)
  * @tx1_smmu: smmu parameters to connect TX1 pipe(from IPA to WLAN second pipe)
- * @hdl: handle associated with this instance.
- * @is_rx1_used: bool to indicate if additional rx pipe required or not
- * @rx1: parameters to connect RX1 pipe(from WLAN to IPA second pipe)
- * @rx1_smmu: smmu parameters to connect RX1 pipe(WLAN to IPA second pipe)
  */
 struct ipa_wdi_conn_in_params {
 	ipa_notify_cb notify;
-	ipa_wdi_mesh_ast_notifier_cb ast_notify;
 	void *priv;
 	bool is_smmu_enabled;
 	u8 num_sys_pipe_needed;
@@ -260,11 +330,6 @@ struct ipa_wdi_conn_in_params {
 		struct ipa_wdi_pipe_setup_info_smmu tx_smmu;
 	} u_tx1;
 	ipa_wdi_hdl_t hdl;
-	bool is_rx1_used;
-	union {
-		struct ipa_wdi_pipe_setup_info rx;
-		struct ipa_wdi_pipe_setup_info_smmu rx_smmu;
-	} u_rx1;
 };
 
 /**
@@ -274,14 +339,12 @@ struct ipa_wdi_conn_in_params {
  * @rx_uc_db_pa: physical address of IPA uC doorbell for RX
  * @tx1_uc_db_pa: physical address of IPA uC doorbell for TX1
  * @is_ddr_mapped: flag set to true if address is from DDR
- * @rx1_uc_db_pa: physical address of IPA uC doorbell for RX1
  */
 struct ipa_wdi_conn_out_params {
 	phys_addr_t tx_uc_db_pa;
 	phys_addr_t rx_uc_db_pa;
 	phys_addr_t tx1_uc_db_pa;
 	bool is_ddr_mapped;
-	phys_addr_t rx1_uc_db_pa;
 };
 
 /**
@@ -303,6 +366,17 @@ struct ipa_wdi_perf_profile {
  */
 struct ipa_wdi_capabilities_out_params {
 	u8 num_of_instances;
+};
+
+/**
+ * struct ipa_wdi_outstanding_buffs - information provided to WLAN driver
+ *
+ * @no_tx_outstanding_buffs: no of outstanding buffer at IPA in TX direction
+ * @no_rx_outstanding_buffs: no of outstanding buffer at IPA in RX direction
+ */
+struct ipa_wdi_outstanding_buffs {
+	u32 no_tx_outstanding_buffs;
+	u32 no_rx_outstanding_buffs;
 };
 
 #if IS_ENABLED(CONFIG_IPA3)
@@ -331,6 +405,172 @@ int ipa_wdi_get_capabilities(
 int ipa_wdi_init(struct ipa_wdi_init_in_params *in,
 	struct ipa_wdi_init_out_params *out);
 
+/**
+ * ipa_wdi_opt_dpath_register_flt_cb_per_inst - Client should call this function to
+ * register filter reservation/release and filter addition/deletion callbacks
+ *
+ *
+ * @Return 0 on success, negative on failure
+ */
+int ipa_wdi_opt_dpath_register_flt_cb_per_inst(
+	ipa_wdi_hdl_t hdl,
+	ipa_wdi_opt_dpath_flt_rsrv_cb flt_rsrv_cb,
+	ipa_wdi_opt_dpath_flt_rsrv_rel_cb flt_rsrv_rel_cb,
+	ipa_wdi_opt_dpath_flt_add_cb flt_add_cb,
+	ipa_wdi_opt_dpath_flt_rem_cb flt_rem_cb);
+
+/**
+ * ipa_wdi_opt_dpath_register_flt_cb_per_inst_v2 - Client should call this function to
+ * register filter reservation/release, filter addition/deletion callbacks,
+ * ctrl addition/deletion, and clk status callback
+ *
+ * @Return 0 on success, negative on failure
+ */
+int ipa_wdi_opt_dpath_register_flt_cb_per_inst_v2(
+	ipa_wdi_hdl_t hdl,
+	ipa_wdi_opt_dpath_flt_rsrv_cb flt_rsrv_cb,
+	ipa_wdi_opt_dpath_flt_rsrv_rel_cb flt_rsrv_rel_cb,
+	ipa_wdi_opt_dpath_flt_add_cb flt_add_cb,
+	ipa_wdi_opt_dpath_flt_rem_cb flt_rem_cb,
+	ipa_wdi_opt_dpath_ctrl_flt_add_cb ctrl_flt_add_cb,
+	ipa_wdi_opt_dpath_ctrl_flt_rem_cb ctrl_flt_rem_cb,
+	ipa_wdi_opt_dpath_clk_status_cb clk_cb);
+
+/**
+ * ipa_wdi_opt_dpath_notify_flt_rsvd_per_inst - Client should call this function to
+ * notify filter reservation event to IPA
+ *
+ *
+ * @Return 0 on success, negative on failure
+ */
+int ipa_wdi_opt_dpath_notify_flt_rsvd_per_inst(ipa_wdi_hdl_t hdl,
+	bool is_success);
+/**
+ * ipa_wdi_opt_dpath_notify_flt_rlsd_per_inst - Client should call this function to
+ * notify filter deletion event to IPA
+ *
+ *
+ * @Return 0 on success, negative on failure
+ */
+int ipa_wdi_opt_dpath_notify_flt_rlsd_per_inst(ipa_wdi_hdl_t hdl,
+	bool is_success);
+
+/**
+ * ipa_wdi_opt_dpath_rsrv_filter_req - Client should call this function to
+ * send filter reservation request to wlan
+ *
+ *
+ * @Return 0 on success, negative on failure
+ */
+int ipa_wdi_opt_dpath_rsrv_filter_req(
+	struct ipa_wlan_opt_dp_rsrv_filter_req_msg_v01 *req,
+	struct ipa_wlan_opt_dp_rsrv_filter_resp_msg_v01 *resp);
+
+/**
+ * ipa_wdi_opt_dpath_add_filter_req - Client should call this function to
+ * send filter add request to wlan
+ *
+ *
+ * @Return 0 on success, negative on failure
+ */
+int ipa_wdi_opt_dpath_add_filter_req(
+	struct ipa_wlan_opt_dp_add_filter_req_msg_v01 *req,
+	struct ipa_wlan_opt_dp_add_filter_complt_ind_msg_v01 *ind);
+
+/**
+ * ipa_wdi_opt_dpath_remove_filter_req - Client should call this function to
+ * send filter remove request to wlan
+ *
+ *
+ * @Return 0 on success, negative on failure
+ */
+int ipa_wdi_opt_dpath_remove_filter_req(
+		struct ipa_wlan_opt_dp_remove_filter_req_msg_v01 *req,
+		struct ipa_wlan_opt_dp_remove_filter_complt_ind_msg_v01 *ind);
+
+/**
+ * ipa_wdi_opt_dpath_remove_filter_req - Client should call this function to
+ * send release reservation request to wlan
+ *
+ *
+ * @Return 0 on success, negative on failure
+ */
+int ipa_wdi_opt_dpath_remove_all_filter_req(
+		struct ipa_wlan_opt_dp_remove_all_filter_req_msg_v01 *req,
+		struct ipa_wlan_opt_dp_remove_all_filter_resp_msg_v01 *resp);
+
+/**
+ * ipa_wdi_opt_dpath_wlan_ctrl_pkt_rcvd_req - Client should call this function to
+ * decrement packet count
+ *
+ *
+ * @Return 0 on success, negative on failure
+ */
+int ipa_wdi_opt_dpath_wlan_ctrl_pkt_rcvd_req(
+	struct ipa_wlan_opt_dp_wlan_ctrl_pkt_rcvd_req_msg_v01 *req);
+
+/**
+ * ipa_wdi_opt_dpath_add_ctrl_filter_req - Client should call this function to
+ * send ctrl filter add request to wlan
+ *
+ *
+ * @Return 0 on success, negative on failure
+ */
+int ipa_wdi_opt_dpath_add_ctrl_filter_req(
+	struct ipa_wlan_opt_dp_add_filter_req_msg_v01 *req,
+	struct ipa_wlan_opt_dp_add_filter_complt_ind_msg_v01 *ind);
+
+/**
+ * ipa_wdi_opt_dpath_notify_ctrl_flt_rem_per_inst - Client should call this function to
+ * notify if ctrl flt del was successful
+ *
+ *
+ * @Return 0 on success, negative on failure
+ */
+int ipa_wdi_opt_dpath_notify_ctrl_flt_rem_per_inst(
+		ipa_wdi_hdl_t hdl,
+		u32 fltr_hdl,
+		u16 resp);
+
+/**
+ * ipa_wdi_opt_dpath_remove_ctrl_filter_req_internal() - Sends WLAN DP filter info
+ * from IPA Q6 to WLAN
+ * @req:	[in] filter removal parameters from IPA Q6
+ * @ind: [out] filter removal indication to IPA Q6
+ *
+ * Returns:	0 on success, negative on failure
+ */
+int ipa_wdi_opt_dpath_remove_ctrl_filter_req(
+		struct ipa_wlan_opt_dp_remove_filter_req_msg_v01 *req,
+		struct ipa_wlan_opt_dp_remove_filter_complt_ind_msg_v01 *ind);
+
+/**
+ * ipa_wdi_opt_dpath_remove_all_ctrl_filter_req - Client should call this function to
+ * remove all filters for SSR scenarios
+ *
+ *
+ * @Return 0 on success, negative on failure
+ */
+int ipa_wdi_opt_dpath_remove_all_ctrl_filter_req(void);
+
+/**
+ * ipa_wdi_opt_dpath_enable_clk_req - Client should call this function to
+ * enable IPA clock.
+ *
+ *
+ * @Return 0 on success, negative on failure
+ */
+int ipa_wdi_opt_dpath_enable_clk_per_inst(ipa_wdi_hdl_t hdl);
+
+/**
+ * ipa_wdi_opt_dpath_disable_clk_req - Client should call this function to
+ * disable IPA clock.
+ *
+ *
+ * @Return 0 on success, negative on failure
+ */
+int ipa_wdi_opt_dpath_disable_clk_per_inst(ipa_wdi_hdl_t hdl);
+
 /** ipa_get_wdi_version - return wdi version
  *
  * @Return void
@@ -342,6 +582,12 @@ int ipa_get_wdi_version(void);
  * @Return bool
  */
 bool ipa_wdi_is_tx1_used(void);
+
+/** ipa_wdi_opt_dpath_ctrl_enabled - return if ctrl cb is registered
+ *
+ * @Return bool
+ */
+bool ipa_wdi_opt_dpath_ctrl_enabled(ipa_wdi_hdl_t hdl);
 
 /**
  * ipa_wdi_init_per_inst - Client should call this function to
@@ -602,6 +848,19 @@ int ipa_wdi_bw_monitor(struct ipa_wdi_bw_info *info);
  */
 int ipa_wdi_sw_stats(struct ipa_wdi_tx_info *info);
 
+/**
+ * ipa_wdi_get_outstanding_buffers() - to get the outstanding buffers at IPA
+ * @out: to pass outstanding buffers count at IPA to WLAN
+ * @hdl: hdl to wdi client
+ *
+ * Returns:	0 on success, negative on failure
+ *
+ * @note Cannot be called from atomic context
+ *
+ */
+int ipa_wdi_get_outstanding_buffers(ipa_wdi_hdl_t hdl,
+	struct ipa_wdi_outstanding_buffs *out);
+
 #else /* IS_ENABLED(CONFIG_IPA3) */
 
 /**
@@ -638,6 +897,11 @@ static inline int ipa_get_wdi_version(void)
 }
 
 static inline int ipa_wdi_is_tx1_used(void)
+{
+	return -EPERM;
+}
+
+bool ipa_wdi_opt_dpath_ctrl_enabled(ipa_wdi_hdl_t hdl)
 {
 	return -EPERM;
 }
@@ -771,6 +1035,118 @@ static inline int ipa_wdi_bw_monitor(struct ipa_wdi_bw_info *info)
 }
 
 static inline int ipa_wdi_sw_stats(struct ipa_wdi_tx_info *info)
+{
+	return -EPERM;
+}
+
+static inline int ipa_wdi_opt_dpath_register_flt_cb_per_inst(
+	ipa_wdi_hdl_t hdl,
+	ipa_wdi_opt_dpath_flt_rsrv_cb flt_rsrv_cb,
+	ipa_wdi_opt_dpath_flt_rsrv_rel_cb flt_rsrv_rel_cb,
+	ipa_wdi_opt_dpath_flt_add_cb flt_add_cb,
+	ipa_wdi_opt_dpath_flt_rem_cb flt_rem_cb)
+{
+	return -EPERM;
+}
+
+static inline int ipa_wdi_opt_dpath_register_flt_cb_per_inst_v2(
+	ipa_wdi_hdl_t hdl,
+	ipa_wdi_opt_dpath_flt_rsrv_cb flt_rsrv_cb,
+	ipa_wdi_opt_dpath_flt_rsrv_rel_cb flt_rsrv_rel_cb,
+	ipa_wdi_opt_dpath_flt_add_cb flt_add_cb,
+	ipa_wdi_opt_dpath_flt_rem_cb flt_rem_cb,
+	ipa_wdi_opt_dpath_ctrl_flt_add_cb ctrl_flt_add_cb,
+	ipa_wdi_opt_dpath_ctrl_flt_rem_cb ctrl_flt_rem_cb,
+	ipa_wdi_opt_dpath_clk_status_cb clk_cb)
+{
+	return -EPERM;
+}
+
+static inline int ipa_wdi_opt_dpath_notify_flt_rsvd_per_inst(ipa_wdi_hdl_t hdl,
+	bool is_success)
+{
+	return -EPERM;
+}
+
+static inline int ipa_wdi_opt_dpath_notify_flt_rlsd_per_inst(ipa_wdi_hdl_t hdl,
+	bool is_success)
+{
+	return -EPERM;
+}
+
+static int ipa_wdi_opt_dpath_rsrv_filter_req(
+	struct ipa_wlan_opt_dp_rsrv_filter_req_msg_v01 *req,
+	struct ipa_wlan_opt_dp_rsrv_filter_resp_msg_v01 *resp)
+{
+	return -EPERM;
+}
+
+static int ipa_wdi_opt_dpath_add_filter_req(
+	struct ipa_wlan_opt_dp_add_filter_req_msg_v01 *req,
+	struct ipa_wlan_opt_dp_add_filter_complt_ind_msg_v01 *ind)
+{
+	return -EPERM;
+}
+
+static int ipa_wdi_opt_dpath_remove_filter_req(
+		struct ipa_wlan_opt_dp_remove_filter_req_msg_v01 *req,
+		struct ipa_wlan_opt_dp_remove_filter_complt_ind_msg_v01 *ind)
+{
+	return -EPERM;
+}
+
+static int ipa_wdi_opt_dpath_remove_all_filter_req(
+		struct ipa_wlan_opt_dp_remove_all_filter_req_msg_v01 *req,
+		struct ipa_wlan_opt_dp_remove_all_filter_resp_msg_v01 *resp)
+{
+	return -EPERM;
+}
+
+static int ipa_wdi_opt_dpath_wlan_ctrl_pkt_rcvd_req(
+	struct ipa_wlan_opt_dp_wlan_ctrl_pkt_rcvd_req_msg_v01 *req);
+{
+	return -EPERM;
+}
+
+static int ipa_wdi_opt_dpath_add_ctrl_filter_req(
+	struct ipa_wlan_opt_dp_add_filter_req_msg_v01 *req,
+	struct ipa_wlan_opt_dp_add_filter_complt_ind_msg_v01 *ind)
+{
+	return -EPERM;
+}
+
+int ipa_wdi_opt_dpath_notify_ctrl_flt_rem_per_inst(
+		ipa_wdi_hdl_t hdl,
+		u32 fltr_hdl,
+		u16 resp)
+{
+	return -EPERM;
+}
+
+static int ipa_wdi_opt_dpath_remove_ctrl_filter_req(
+		struct ipa_wlan_opt_dp_remove_filter_req_msg_v01 *req,
+		struct ipa_wlan_opt_dp_remove_filter_complt_ind_msg_v01 *ind)
+{
+	return -EPERM;
+}
+
+static int ipa_wdi_opt_dpath_remove_all_ctrl_filter_req(void)
+{
+	return -EPERM;
+}
+
+static int ipa_wdi_opt_dpath_enable_clk_per_inst(ipa_wdi_hdl_t hdl)
+{
+	return -EPERM;
+}
+
+static int ipa_wdi_opt_dpath_disable_clk_per_inst(ipa_wdi_hdl_t hdl)
+{
+	return -EPERM;
+}
+
+static inline int ipa_wdi_get_outstanding_buffers(ipa_wdi_hdl_t hdl,
+	struct ipa_wdi_outstanding_buffs *out)
 {
 	return -EPERM;
 }

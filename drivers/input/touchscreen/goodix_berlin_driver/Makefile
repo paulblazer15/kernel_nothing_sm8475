@@ -1,5 +1,6 @@
-# Increase frame size to 2304 because of 'brld_get_framedata' and 'goodix_do_inspect' exceed stack size
-ccflags-y += -Wframe-larger-than=2304
+# Increase frame size to 2400 because 'brld_get_framedata' and
+# 'goodix_do_inspect' exceed the default stack-frame warning limit.
+ccflags-y += -Wframe-larger-than=2400
 
 obj-$(CONFIG_TOUCHSCREEN_GOODIX_BRL) += goodix_core.o
 goodix_core-y := \
