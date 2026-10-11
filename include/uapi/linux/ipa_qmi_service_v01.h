@@ -58,6 +58,9 @@
 #define QMI_IPA_IPFLTR_NUM_MEQ_32_EQNS_V01 2
 #define QMI_IPA_MAX_PIPES_V01 20
 #define QMI_IPA_MAX_PER_CLIENTS_V01 64
+#define QMI_IPA_MAX_RMNET_ETH_INFO_V01 19
+#define QMI_IPA_MAX_MAC_ADDR_LEN_V01 6
+#define QMI_IPA_MAX_IPV4_ADDR_LEN_V01 4
 
 /*
  * Indicates presence of newly added member to support HW stats.

@@ -349,6 +349,36 @@ struct ipa_fmwk_contex {
 	int (*ipa_wdi_release_smmu_mapping_per_inst)(u32 hdl, u32 num_buffers,
 		struct ipa_wdi_buffer_info *info);
 
+	int (*ipa_wdi_opt_dpath_rsrv_filter_req)(
+		struct ipa_wlan_opt_dp_rsrv_filter_req_msg_v01 *req,
+		struct ipa_wlan_opt_dp_rsrv_filter_resp_msg_v01 *resp);
+
+	int (*ipa_wdi_opt_dpath_add_filter_req)(
+		struct ipa_wlan_opt_dp_add_filter_req_msg_v01 *req,
+		struct ipa_wlan_opt_dp_add_filter_complt_ind_msg_v01 *ind);
+
+	int (*ipa_wdi_opt_dpath_remove_filter_req)(
+		struct ipa_wlan_opt_dp_remove_filter_req_msg_v01 *req,
+		struct ipa_wlan_opt_dp_remove_filter_complt_ind_msg_v01 *ind);
+
+	int (*ipa_wdi_opt_dpath_remove_all_filter_req)(
+		struct ipa_wlan_opt_dp_remove_all_filter_req_msg_v01 *req,
+		struct ipa_wlan_opt_dp_remove_all_filter_resp_msg_v01 *resp);
+
+	int (*ipa_wdi_opt_dpath_wlan_ctrl_pkt_rcvd_req)(
+		struct ipa_wlan_opt_dp_wlan_ctrl_pkt_rcvd_req_msg_v01 *req);
+
+	int (*ipa_wdi_opt_dpath_add_ctrl_filter_req)(
+		struct ipa_wlan_opt_dp_add_filter_req_msg_v01 *req,
+		struct ipa_wlan_opt_dp_add_filter_complt_ind_msg_v01 *ind);
+
+	int (*ipa_wdi_opt_dpath_remove_ctrl_filter_req)(
+		struct ipa_wlan_opt_dp_remove_filter_req_msg_v01 *req,
+		struct ipa_wlan_opt_dp_remove_filter_complt_ind_msg_v01 *ind);
+
+	int (*ipa_wdi_opt_dpath_remove_all_ctrl_filter_req)(void);
+	bool (*ipa_wdi_opt_dpath_ctrl_enabled)(ipa_wdi_hdl_t hdl);
+
 	/* ipa_gsb APIs*/
 	int (*ipa_bridge_init)(struct ipa_bridge_init_params *params, u32 *hdl);
 
@@ -1377,6 +1407,24 @@ int ipa_fmwk_register_ipa_wdi3(const struct ipa_wdi3_data *in)
 		in->ipa_wdi_create_smmu_mapping_per_inst;
 	ipa_fmwk_ctx->ipa_wdi_release_smmu_mapping_per_inst =
 		in->ipa_wdi_release_smmu_mapping_per_inst;
+	ipa_fmwk_ctx->ipa_wdi_opt_dpath_rsrv_filter_req =
+		in->ipa_wdi_opt_dpath_rsrv_filter_req;
+	ipa_fmwk_ctx->ipa_wdi_opt_dpath_add_filter_req =
+		in->ipa_wdi_opt_dpath_add_filter_req;
+	ipa_fmwk_ctx->ipa_wdi_opt_dpath_remove_filter_req =
+		in->ipa_wdi_opt_dpath_remove_filter_req;
+	ipa_fmwk_ctx->ipa_wdi_opt_dpath_remove_all_filter_req =
+		in->ipa_wdi_opt_dpath_remove_all_filter_req;
+	ipa_fmwk_ctx->ipa_wdi_opt_dpath_wlan_ctrl_pkt_rcvd_req =
+		in->ipa_wdi_opt_dpath_wlan_ctrl_pkt_rcvd_req;
+	ipa_fmwk_ctx->ipa_wdi_opt_dpath_add_ctrl_filter_req =
+		in->ipa_wdi_opt_dpath_add_ctrl_filter_req;
+	ipa_fmwk_ctx->ipa_wdi_opt_dpath_remove_ctrl_filter_req =
+		in->ipa_wdi_opt_dpath_remove_ctrl_filter_req;
+	ipa_fmwk_ctx->ipa_wdi_opt_dpath_remove_all_ctrl_filter_req =
+		in->ipa_wdi_opt_dpath_remove_all_ctrl_filter_req;
+	ipa_fmwk_ctx->ipa_wdi_opt_dpath_ctrl_enabled =
+		in->ipa_wdi_opt_dpath_ctrl_enabled;
 	pr_info("ipa_wdi3 registered successfully\n");
 
 	return 0;
@@ -1658,6 +1706,115 @@ int ipa_wdi_release_smmu_mapping_per_inst(u32 hdl, u32 num_buffers,
 	return ret;
 }
 EXPORT_SYMBOL(ipa_wdi_release_smmu_mapping_per_inst);
+
+int ipa_wdi_opt_dpath_rsrv_filter_req(
+	struct ipa_wlan_opt_dp_rsrv_filter_req_msg_v01 *req,
+	struct ipa_wlan_opt_dp_rsrv_filter_resp_msg_v01 *resp)
+{
+	int ret;
+
+	IPA_FMWK_DISPATCH_RETURN(ipa_wdi_opt_dpath_rsrv_filter_req,
+		req, resp);
+
+	return ret;
+}
+EXPORT_SYMBOL(ipa_wdi_opt_dpath_rsrv_filter_req);
+
+int ipa_wdi_opt_dpath_add_filter_req(
+	struct ipa_wlan_opt_dp_add_filter_req_msg_v01 *req,
+	struct ipa_wlan_opt_dp_add_filter_complt_ind_msg_v01 *ind)
+{
+	int ret;
+
+	IPA_FMWK_DISPATCH_RETURN(ipa_wdi_opt_dpath_add_filter_req,
+		req, ind);
+
+	return ret;
+}
+EXPORT_SYMBOL(ipa_wdi_opt_dpath_add_filter_req);
+
+int ipa_wdi_opt_dpath_remove_filter_req(
+	struct ipa_wlan_opt_dp_remove_filter_req_msg_v01 *req,
+	struct ipa_wlan_opt_dp_remove_filter_complt_ind_msg_v01 *ind)
+{
+	int ret;
+
+	IPA_FMWK_DISPATCH_RETURN(ipa_wdi_opt_dpath_remove_filter_req,
+		req, ind);
+
+	return ret;
+}
+EXPORT_SYMBOL(ipa_wdi_opt_dpath_remove_filter_req);
+
+int ipa_wdi_opt_dpath_remove_all_filter_req(
+	struct ipa_wlan_opt_dp_remove_all_filter_req_msg_v01 *req,
+	struct ipa_wlan_opt_dp_remove_all_filter_resp_msg_v01 *resp)
+{
+	int ret;
+
+	IPA_FMWK_DISPATCH_RETURN(ipa_wdi_opt_dpath_remove_all_filter_req,
+		req, resp);
+
+	return ret;
+}
+EXPORT_SYMBOL(ipa_wdi_opt_dpath_remove_all_filter_req);
+
+int ipa_wdi_opt_dpath_wlan_ctrl_pkt_rcvd_req(
+	struct ipa_wlan_opt_dp_wlan_ctrl_pkt_rcvd_req_msg_v01 *req)
+{
+	int ret;
+
+	IPA_FMWK_DISPATCH_RETURN(ipa_wdi_opt_dpath_wlan_ctrl_pkt_rcvd_req,
+		req);
+
+	return ret;
+}
+EXPORT_SYMBOL(ipa_wdi_opt_dpath_wlan_ctrl_pkt_rcvd_req);
+
+int ipa_wdi_opt_dpath_add_ctrl_filter_req(
+	struct ipa_wlan_opt_dp_add_filter_req_msg_v01 *req,
+	struct ipa_wlan_opt_dp_add_filter_complt_ind_msg_v01 *ind)
+{
+	int ret;
+
+	IPA_FMWK_DISPATCH_RETURN(ipa_wdi_opt_dpath_add_ctrl_filter_req,
+		req, ind);
+
+	return ret;
+}
+EXPORT_SYMBOL(ipa_wdi_opt_dpath_add_ctrl_filter_req);
+
+int ipa_wdi_opt_dpath_remove_ctrl_filter_req(
+	struct ipa_wlan_opt_dp_remove_filter_req_msg_v01 *req,
+	struct ipa_wlan_opt_dp_remove_filter_complt_ind_msg_v01 *ind)
+{
+	int ret;
+
+	IPA_FMWK_DISPATCH_RETURN(ipa_wdi_opt_dpath_remove_ctrl_filter_req,
+		req, ind);
+
+	return ret;
+}
+EXPORT_SYMBOL(ipa_wdi_opt_dpath_remove_ctrl_filter_req);
+
+int ipa_wdi_opt_dpath_remove_all_ctrl_filter_req(void)
+{
+	int ret;
+
+	IPA_FMWK_DISPATCH_RETURN(ipa_wdi_opt_dpath_remove_all_ctrl_filter_req);
+
+	return ret;
+}
+EXPORT_SYMBOL(ipa_wdi_opt_dpath_remove_all_ctrl_filter_req);
+
+bool ipa_wdi_opt_dpath_ctrl_enabled(ipa_wdi_hdl_t hdl)
+{
+	if (!ipa_fmwk_ctx || !ipa_fmwk_ctx->ipa_wdi_opt_dpath_ctrl_enabled)
+		return false;
+
+	return ipa_fmwk_ctx->ipa_wdi_opt_dpath_ctrl_enabled(hdl);
+}
+EXPORT_SYMBOL(ipa_wdi_opt_dpath_ctrl_enabled);
 
 int ipa_wdi_get_stats(struct IpaHwStatsWDIInfoData_t *stats)
 {
